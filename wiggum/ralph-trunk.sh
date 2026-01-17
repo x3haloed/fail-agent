@@ -126,7 +126,45 @@ while [ $iteration -lt $max_iterations ]; do
         log "SUCCESS" "✅ Application generated successfully"
     else
         log "INFO" "Application exists, analyzing for improvements..."
-        # TODO: Implement improvement logic for existing applications
+        log "INFO" "Checking previous verification results to determine what needs fixing..."
+
+        # Read the previous iteration's results from the log to understand what failed
+        PREVIOUS_ISSUES=""
+        if [ -f "$LOG_FILE" ]; then
+            # Extract the most recent verification failures
+            EXEC_ISSUES=$(grep -A 10 "EXECUTION VERIFICATION AGENT RESPONSE" "$LOG_FILE" | tail -10)
+            CODE_ISSUES=$(grep -A 10 "CODE SLOP AGENT RESPONSE" "$LOG_FILE" | tail -10)
+            ARCH_ISSUES=$(grep -A 10 "ARCHITECTURE AGENT RESPONSE" "$LOG_FILE" | tail -10)
+            UI_ISSUES=$(grep -A 10 "UI DESIGN SNOB AGENT RESPONSE" "$LOG_FILE" | tail -10)
+
+            PREVIOUS_ISSUES="EXECUTION: $EXEC_ISSUES\nCODE: $CODE_ISSUES\nARCHITECTURE: $ARCH_ISSUES\nUI: $UI_ISSUES"
+        fi
+
+        log "INFO" "Previous issues found, requesting targeted improvements..."
+        opencode run --model opencode/grok-code "
+        You are the Ralph Wiggum Improvement Agent. The application exists but has verification failures.
+
+        USER INTENT: $INTENT
+        ITERATION: $iteration
+
+        Previous verification results:
+        $PREVIOUS_ISSUES
+
+        Your task: Fix the specific issues found by the verification agents. Do NOT regenerate everything from scratch - only fix the problems reported.
+
+        Instructions:
+        1. Analyze the specific failures mentioned in the verification results
+        2. Make targeted improvements to address ONLY those issues
+        3. Keep all working code intact - only fix what's broken
+        4. Focus on the highest priority issues first
+
+        If execution verification failed: Fix core functionality bugs
+        If code quality failed: Clean up the specific code quality issues
+        If architecture failed: Improve the architectural problems
+        If UI design failed: Fix the design and UX issues
+
+        Make surgical, precise changes - not wholesale rewrites.
+        " 2>&1 | stream_log "IMPROVEMENT"
     fi
 
     # Phase 2: Execution Verification Agent
