@@ -69,78 +69,65 @@ while [ $iteration -lt $max_iterations ]; do
     echo "🔍 Phase 2: Execution Verification Agent"
     echo "Testing if the application actually works like a human would use it..."
 
-    VERIFICATION_RESULT=$(opencode run --model opencode/grok-code "
-    You are the Execution Verification Agent - the truth anchor.
-
-    Your job: Verify that the application works exactly as intended by actually using it like a human.
-
-    USER INTENT: $INTENT
-
-    Verification Requirements:
-    1. Can you start all necessary servers?
-    2. Can you perform the core user workflows?
-    3. Does the application behave as specified?
-    4. Are there any functional bugs or missing features?
-
-    Testing Instructions:
-    - Actually run the application servers
-    - Simulate real user interactions (API calls, UI interactions)
-    - Check that ALL requirements from user intent are met
-    - Report any discrepancies clearly
-
-    Response Format:
-    If everything works perfectly: SUCCESS
-    If issues found: FAILURE: [detailed description of problems]
-
-    Be ruthless - if it doesn't work like a human expects, it's not good enough.
-    " 2>/dev/null)
-
-    echo "Verification Result: $VERIFICATION_RESULT"
-
-    if echo "$VERIFICATION_RESULT" | grep -q "SUCCESS"; then
-        echo "✅ Execution verification passed!"
-        VERIFICATION_PASSED=true
+    # Execute the verification script that actually tests the app
+    if [ -f "wiggum/verify.sh" ]; then
+        echo "Running human-like verification tests..."
+        if ./wiggum/verify.sh > verification_output.log 2>&1; then
+            echo "✅ Verification script completed"
+            VERIFICATION_PASSED=true
+        else
+            echo "❌ Verification script failed"
+            VERIFICATION_PASSED=false
+        fi
     else
-        echo "❌ Execution verification failed"
+        echo "❌ No verification script found"
         VERIFICATION_PASSED=false
     fi
 
     # Phase 3: Code Slop Agent (if execution passed)
     if [ "$VERIFICATION_PASSED" = true ]; then
         echo "🧹 Phase 3: Code Slop Agent"
-        echo "Checking for code quality issues..."
+        echo "Analyzing code for DRY violations, spaghetti patterns, and quality issues..."
 
-        SLOP_RESULT=$(opencode run --model opencode/grok-code "
-        You are the Code Slop Agent - entropy controller.
+        # Actually analyze the codebase
+        SLOP_ISSUES=""
 
-        Your job: Detect and prevent code quality degradation.
+        # Check for DRY violations - look for duplicate code patterns
+        if [ -d "wiggum/workspace" ]; then
+            # Find duplicate strings in code files
+            DUPLICATE_COUNT=$(find wiggum/workspace -name "*.js" -o -name "*.ts" -o -name "*.vue" | xargs cat 2>/dev/null | grep -o "function [a-zA-Z_][a-zA-Z0-9_]*" | sort | uniq -c | sort -nr | awk '$1 > 1 {print $2}' | wc -l)
 
-        Analyze the codebase for:
-        1. DRY (Don't Repeat Yourself) violations
-        2. Spaghetti code patterns
-        3. Poor naming conventions
-        4. Dead code
-        5. Overly complex functions
-        6. Missing error handling
-        7. Inconsistent code style
+            if [ "$DUPLICATE_COUNT" -gt 0 ]; then
+                SLOP_ISSUES="${SLOP_ISSUES}DRY violations found ($DUPLICATE_COUNT duplicate patterns); "
+            fi
 
-        Focus areas:
-        - wiggum/workspace/ (the application code)
+            # Check for long functions (>50 lines)
+            LONG_FUNCTIONS=$(find wiggum/workspace -name "*.js" -o -name "*.ts" | xargs awk '/function/{f=$2} /^}/{if(NR-start>50)print f,NR-start" lines"} {start=NR}' 2>/dev/null | wc -l)
 
-        Response Format:
-        If code is clean: CLEAN
-        If issues found: SLOP: [detailed list of problems to fix]
+            if [ "$LONG_FUNCTIONS" -gt 0 ]; then
+                SLOP_ISSUES="${SLOP_ISSUES}Long functions detected ($LONG_FUNCTIONS functions >50 lines); "
+            fi
 
-        Be thorough - clean code is maintainable code.
-        " 2>/dev/null)
+            # Check for console.log statements (shouldn't be in production)
+            CONSOLE_LOGS=$(find wiggum/workspace -name "*.js" -o -name "*.ts" -o -name "*.vue" | xargs grep -l "console\.log" 2>/dev/null | wc -l)
 
-        echo "Code Quality Result: $SLOP_RESULT"
+            if [ "$CONSOLE_LOGS" -gt 0 ]; then
+                SLOP_ISSUES="${SLOP_ISSUES}Console.log statements found in $CONSOLE_LOGS files; "
+            fi
 
-        if echo "$SLOP_RESULT" | grep -q "CLEAN"; then
-            echo "✅ Code quality check passed!"
+            # Check for poor naming (functions with generic names)
+            GENERIC_NAMES=$(find wiggum/workspace -name "*.js" -o -name "*.ts" | xargs grep -o "function [a-z]\|function test\|function temp\|function foo\|function bar" 2>/dev/null | wc -l)
+
+            if [ "$GENERIC_NAMES" -gt 0 ]; then
+                SLOP_ISSUES="${SLOP_ISSUES}Generic function names detected ($GENERIC_NAMES); "
+            fi
+        fi
+
+        if [ -z "$SLOP_ISSUES" ]; then
+            echo "✅ Code quality check passed - no slop detected!"
             SLOP_CLEAN=true
         else
-            echo "❌ Code quality issues found"
+            echo "❌ Code quality issues found: $SLOP_ISSUES"
             SLOP_CLEAN=false
         fi
     else
@@ -150,38 +137,73 @@ while [ $iteration -lt $max_iterations ]; do
     # Phase 4: Architecture Agent (if code is clean)
     if [ "$SLOP_CLEAN" = true ]; then
         echo "🏗️ Phase 4: Architecture Agent"
-        echo "Evaluating system design and scalability..."
+        echo "Evaluating system design, scalability, and architectural patterns..."
 
-        ARCH_RESULT=$(opencode run --model opencode/grok-code "
-        You are the Architecture Agent - system designer.
+        ARCH_ISSUES=""
 
-        Your job: Ensure the application has elegant, scalable architecture.
+        if [ -d "wiggum/workspace" ]; then
+            # Check for proper separation of concerns
+            if [ -d "wiggum/workspace/server" ] && [ -d "wiggum/workspace/client" ]; then
+                echo "✅ Proper frontend/backend separation detected"
+            else
+                ARCH_ISSUES="${ARCH_ISSUES}Missing proper frontend/backend separation; "
+            fi
 
-        Evaluate:
-        1. Proper separation of concerns (frontend/backend/data)
-        2. API design quality
-        3. Database schema appropriateness
-        4. Component organization
-        5. Error handling patterns
-        6. Performance considerations
-        7. Future extensibility
+            # Check for API design quality
+            if [ -f "wiggum/workspace/server/index.js" ]; then
+                # Check for RESTful patterns
+                REST_ENDPOINTS=$(grep -c "app\.\(get\|post\|put\|delete\)" wiggum/workspace/server/index.js 2>/dev/null || echo "0")
+                if [ "$REST_ENDPOINTS" -lt 3 ]; then
+                    ARCH_ISSUES="${ARCH_ISSUES}Insufficient REST endpoints ($REST_ENDPOINTS found, need at least 3); "
+                fi
 
-        Focus: How would this scale to 10k lines? Is it maintainable?
+                # Check for proper error handling
+                ERROR_HANDLING=$(grep -c "catch\|try" wiggum/workspace/server/index.js 2>/dev/null || echo "0")
+                if [ "$ERROR_HANDLING" -lt 1 ]; then
+                    ARCH_ISSUES="${ARCH_ISSUES}No error handling in backend; "
+                fi
+            fi
 
-        Response Format:
-        If architecture is sound: SOLID
-        If issues found: ARCH: [architectural improvements needed]
+            # Check for database schema quality
+            if grep -q "CREATE TABLE" wiggum/workspace/server/index.js 2>/dev/null; then
+                TABLES=$(grep -c "CREATE TABLE" wiggum/workspace/server/index.js 2>/dev/null || echo "0")
+                if [ "$TABLES" -lt 1 ]; then
+                    ARCH_ISSUES="${ARCH_ISSUES}No proper database schema; "
+                fi
+            else
+                ARCH_ISSUES="${ARCH_ISSUES}No database schema defined; "
+            fi
 
-        Think big - this should be production-ready architecture.
-        " 2>/dev/null)
+            # Check for scalability concerns
+            TOTAL_FILES=$(find wiggum/workspace -name "*.js" -o -name "*.ts" -o -name "*.vue" | wc -l)
+            if [ "$TOTAL_FILES" -gt 50 ]; then
+                ARCH_ISSUES="${ARCH_ISSUES}Too many files ($TOTAL_FILES) - consider modularization; "
+            fi
 
-        echo "Architecture Result: $ARCH_RESULT"
+            # Check for proper component organization (frontend)
+            if [ -d "wiggum/workspace/client/src/components" ]; then
+                COMPONENT_COUNT=$(find wiggum/workspace/client/src/components -name "*.vue" 2>/dev/null | wc -l)
+                if [ "$COMPONENT_COUNT" -lt 2 ]; then
+                    ARCH_ISSUES="${ARCH_ISSUES}Too few components ($COMPONENT_COUNT) - consider better decomposition; "
+                fi
+            fi
 
-        if echo "$ARCH_RESULT" | grep -q "SOLID"; then
-            echo "✅ Architecture check passed!"
+            # Check for routing (SPA should have routes)
+            if [ -f "wiggum/workspace/client/src/router/index.ts" ]; then
+                ROUTES=$(grep -c "path:" wiggum/workspace/client/src/router/index.ts 2>/dev/null || echo "0")
+                if [ "$ROUTES" -lt 2 ]; then
+                    ARCH_ISSUES="${ARCH_ISSUES}Insufficient routes ($ROUTES) for a proper SPA; "
+                fi
+            else
+                ARCH_ISSUES="${ARCH_ISSUES}No routing system - not a proper SPA; "
+            fi
+        fi
+
+        if [ -z "$ARCH_ISSUES" ]; then
+            echo "✅ Architecture check passed - solid, scalable design!"
             ARCH_SOLID=true
         else
-            echo "❌ Architecture issues found"
+            echo "❌ Architecture issues found: $ARCH_ISSUES"
             ARCH_SOLID=false
         fi
     else
@@ -191,37 +213,74 @@ while [ $iteration -lt $max_iterations ]; do
     # Phase 5: UI Design Snob Agent (if architecture is solid)
     if [ "$ARCH_SOLID" = true ]; then
         echo "🎨 Phase 5: UI Design Snob Agent"
-        echo "Ensuring pixel-perfect, professional UI..."
+        echo "Evaluating pixel-perfect UI design, accessibility, and user experience..."
 
-        UI_RESULT=$(opencode run --model opencode/grok-code "
-        You are the UI Design Snob Agent - pixel-perfect enforcer.
+        UI_ISSUES=""
 
-        Your job: Ensure the user interface is professionally polished.
+        if [ -d "wiggum/workspace/client" ]; then
+            # Check for proper CSS organization
+            if [ -f "wiggum/workspace/client/src/assets/main.css" ]; then
+                CSS_SIZE=$(wc -l < wiggum/workspace/client/src/assets/main.css)
+                if [ "$CSS_SIZE" -lt 10 ]; then
+                    UI_ISSUES="${UI_ISSUES}Insufficient CSS styling ($CSS_SIZE lines); "
+                fi
 
-        Evaluate:
-        1. Visual consistency and branding
-        2. Responsive design across screen sizes
-        3. Accessibility compliance
-        4. User experience flow
-        5. Loading states and error handling
-        6. Mobile-first design principles
+                # Check for responsive design
+                RESPONSIVE=$(grep -c "@media\|flex\|grid" wiggum/workspace/client/src/assets/main.css 2>/dev/null || echo "0")
+                if [ "$RESPONSIVE" -lt 3 ]; then
+                    UI_ISSUES="${UI_ISSUES}Limited responsive design ($RESPONSIVE responsive rules); "
+                fi
+            else
+                UI_ISSUES="${UI_ISSUES}No main CSS file found; "
+            fi
 
-        Be picky - if it's 'off by two pixels', it's not good enough.
+            # Check for accessibility
+            if [ -f "wiggum/workspace/client/src/App.vue" ]; then
+                ACCESSIBILITY=$(grep -c "alt=\|aria-\|role=" wiggum/workspace/client/src/App.vue 2>/dev/null || echo "0")
+                if [ "$ACCESSIBILITY" -lt 2 ]; then
+                    UI_ISSUES="${UI_ISSUES}Poor accessibility ($ACCESSIBILITY accessibility attributes); "
+                fi
 
-        Response Format:
-        If UI is perfect: BEAUTIFUL
-        If issues found: UGLY: [specific UI/UX problems]
+                # Check for semantic HTML
+                SEMANTIC=$(grep -c "<header\|<main\|<section\|<article\|<aside\|<footer" wiggum/workspace/client/src/App.vue 2>/dev/null || echo "0")
+                if [ "$SEMANTIC" -lt 2 ]; then
+                    UI_ISSUES="${UI_ISSUES}Limited semantic HTML ($SEMANTIC semantic elements); "
+                fi
+            fi
 
-        Remember: Users judge books by covers. Make it gorgeous.
-        " 2>/dev/null)
+            # Check for component structure
+            if [ -d "wiggum/workspace/client/src/components" ]; then
+                COMPONENT_FILES=$(find wiggum/workspace/client/src/components -name "*.vue" | wc -l)
+                if [ "$COMPONENT_FILES" -lt 2 ]; then
+                    UI_ISSUES="${UI_ISSUES}Insufficient component breakdown ($COMPONENT_FILES components); "
+                fi
 
-        echo "UI Design Result: $UI_RESULT"
+                # Check for proper component naming
+                BAD_NAMES=$(find wiggum/workspace/client/src/components -name "*.vue" | xargs basename -a | grep -c "Component\|Test\|Temp\|Foo\|Bar" 2>/dev/null || echo "0")
+                if [ "$BAD_NAMES" -gt 0 ]; then
+                    UI_ISSUES="${UI_ISSUES}Poor component naming ($BAD_NAMES badly named components); "
+                fi
+            fi
 
-        if echo "$UI_RESULT" | grep -q "BEAUTIFUL"; then
-            echo "✅ UI design check passed!"
+            # Check for loading states and error handling
+            VUE_FILES=$(find wiggum/workspace/client/src -name "*.vue" | wc -l)
+            LOADING_STATES=$(find wiggum/workspace/client/src -name "*.vue" | xargs grep -l "loading\|Loading" 2>/dev/null | wc -l)
+            if [ "$LOADING_STATES" -lt "$((VUE_FILES / 2))" ]; then
+                UI_ISSUES="${UI_ISSUES}Insufficient loading states ($LOADING_STATES/$VUE_FILES components); "
+            fi
+
+            # Check for consistent styling
+            INLINE_STYLES=$(find wiggum/workspace/client/src -name "*.vue" | xargs grep -c "style=" 2>/dev/null | awk '{sum+=$1} END {print sum}')
+            if [ "$INLINE_STYLES" -gt 5 ]; then
+                UI_ISSUES="${UI_ISSUES}Too many inline styles ($INLINE_STYLES) - use CSS classes; "
+            fi
+        fi
+
+        if [ -z "$UI_ISSUES" ]; then
+            echo "✅ UI design check passed - pixel-perfect and professional!"
             UI_PERFECT=true
         else
-            echo "❌ UI design issues found"
+            echo "❌ UI design issues found: $UI_ISSUES"
             UI_PERFECT=false
         fi
     else

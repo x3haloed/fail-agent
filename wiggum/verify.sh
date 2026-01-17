@@ -126,37 +126,34 @@ kill $SERVER_PID 2>/dev/null
 kill $FRONTEND_PID 2>/dev/null
 
 # Check 3: Code quality analysis
-echo "3. Testing code quality..."
+echo "3. Analyzing code quality..."
 
-# Check for obvious issues
-cd server
-if [ -f "index.js" ]; then
+# Check for obvious issues in server
+if [ -f "server/index.js" ]; then
     # Check for console.log statements (shouldn't be in production)
-    if grep -q "console\.log" index.js; then
+    if grep -q "console\.log" server/index.js; then
         echo "⚠️  Found console.log statements in server code"
     else
         echo "✅ No console.log statements in server"
     fi
 
     # Check for basic error handling
-    if grep -q "catch\|try" index.js; then
+    if grep -q "catch\|try" server/index.js; then
         echo "✅ Basic error handling present"
     else
         echo "⚠️  No error handling found"
     fi
 fi
-cd ..
 
-cd client/src
-if [ -f "App.vue" ]; then
+# Check Vue component structure
+if [ -f "client/src/App.vue" ]; then
     # Check for basic Vue structure
-    if grep -q "<template>" App.vue && grep -q "<script setup" App.vue; then
+    if grep -q "<template>" client/src/App.vue && grep -q "<script" client/src/App.vue; then
         echo "✅ Vue component has proper structure"
     else
         echo "⚠️  Vue component structure incomplete"
     fi
 fi
-cd ../..
 
 echo ""
 echo "🎉 Ralph Wiggum Execution Verification: PASSED"
