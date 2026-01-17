@@ -23,12 +23,9 @@ log() {
 stream_log() {
     local prefix="$1"
     while IFS= read -r line; do
-        log "STREAM" "[$prefix] $line"
+        echo "[$timestamp] [STREAM] [$prefix] $line" | tee -a "$LOG_FILE"
     done
 }
-
-# Redirect all output to log file
-exec > >(tee -a "$LOG_FILE") 2>&1
 
 log "INFO" "🎯 Ralph Wiggum Trunk Agent Activated"
 log "INFO" "====================================="
@@ -131,16 +128,19 @@ while [ $iteration -lt $max_iterations ]; do
         # Read the previous iteration's results from the log to understand what failed
         PREVIOUS_ISSUES=""
         if [ -f "$LOG_FILE" ]; then
-            # Extract the most recent verification failures
-            EXEC_ISSUES=$(grep -A 10 "EXECUTION VERIFICATION AGENT RESPONSE" "$LOG_FILE" | tail -10)
-            CODE_ISSUES=$(grep -A 10 "CODE SLOP AGENT RESPONSE" "$LOG_FILE" | tail -10)
-            ARCH_ISSUES=$(grep -A 10 "ARCHITECTURE AGENT RESPONSE" "$LOG_FILE" | tail -10)
-            UI_ISSUES=$(grep -A 10 "UI DESIGN SNOB AGENT RESPONSE" "$LOG_FILE" | tail -10)
+            # Extract the most recent verification failures from previous iterations
+            # Look for the most recent complete set of agent responses
+            EXEC_ISSUES=$(grep -A 5 "AGENT_OUTPUT.*EXECUTION VERIFICATION AGENT RESPONSE" "$LOG_FILE" | tail -10 | grep -v "AGENT_OUTPUT")
+            CODE_ISSUES=$(grep -A 5 "AGENT_OUTPUT.*CODE SLOP AGENT RESPONSE" "$LOG_FILE" | tail -10 | grep -v "AGENT_OUTPUT")
+            ARCH_ISSUES=$(grep -A 5 "AGENT_OUTPUT.*ARCHITECTURE AGENT RESPONSE" "$LOG_FILE" | tail -10 | grep -v "AGENT_OUTPUT")
+            UI_ISSUES=$(grep -A 5 "AGENT_OUTPUT.*UI DESIGN SNOB AGENT RESPONSE" "$LOG_FILE" | tail -10 | grep -v "AGENT_OUTPUT")
 
             PREVIOUS_ISSUES="EXECUTION: $EXEC_ISSUES\nCODE: $CODE_ISSUES\nARCHITECTURE: $ARCH_ISSUES\nUI: $UI_ISSUES"
+            log "DEBUG" "Previous issues extracted: $PREVIOUS_ISSUES"
         fi
 
         log "INFO" "Previous issues found, requesting targeted improvements..."
+        cd workspace
         opencode run --model opencode/grok-code "
         You are the Ralph Wiggum Improvement Agent. The application exists but has verification failures.
 
@@ -165,6 +165,7 @@ while [ $iteration -lt $max_iterations ]; do
 
         Make surgical, precise changes - not wholesale rewrites.
         " 2>&1 | stream_log "IMPROVEMENT"
+        cd ..
     fi
 
     # Phase 2: Execution Verification Agent
@@ -173,12 +174,13 @@ while [ $iteration -lt $max_iterations ]; do
 
     # Use OpenCode agent to actually verify the application
     log "INFO" "Calling OpenCode Execution Verification Agent..."
+    cd workspace
     VERIFICATION_RESULT=$(opencode run --model opencode/grok-code "
     You are the Execution Verification Agent - you must verify that the application actually works as intended by a human user.
 
     USER INTENT: $INTENT
 
-    Your task is to examine the generated application in 'workspace/' and determine if it meets the user's requirements.
+    Your task is to examine the generated application and determine if it meets the user's requirements.
 
     CRITICAL: You must actually understand what the user wanted and verify it works. Don't just check if servers start - verify the CORE FUNCTIONALITY.
 
@@ -189,7 +191,7 @@ while [ $iteration -lt $max_iterations ]; do
     - There are no obvious bugs or missing functionality
 
     Instructions:
-    1. Examine the generated code in workspace/
+    1. Examine the generated code in the current directory
     2. Understand what the application is supposed to do
     3. Verify that the implementation matches the intent
     4. Check for any obvious issues or missing features
@@ -199,7 +201,8 @@ while [ $iteration -lt $max_iterations ]; do
     If there are issues: NEEDS_FIXES: [detailed description of problems]
 
     Be thorough - would a human user be satisfied with this application?
-    " 2>&1 | tee >(stream_log "EXEC_VERIFY"))
+    " 2>&1 | stream_log "EXEC_VERIFY")
+    cd ..
 
     log "AGENT_OUTPUT" "=== EXECUTION VERIFICATION AGENT RESPONSE ==="
     log "AGENT_OUTPUT" "$VERIFICATION_RESULT"
@@ -221,10 +224,11 @@ while [ $iteration -lt $max_iterations ]; do
 
         # Use OpenCode agent for intelligent code quality analysis
         log "INFO" "Calling OpenCode Code Slop Agent..."
+        cd workspace
         SLOP_RESULT=$(opencode run --model opencode/grok-code "
         You are the Code Slop Agent - expert code quality analyzer.
 
-        Examine the codebase in 'workspace/' and identify code quality issues that would make it hard to maintain.
+        Examine the codebase and identify code quality issues that would make it hard to maintain.
 
         Look for:
         - DRY (Don't Repeat Yourself) violations
@@ -244,7 +248,8 @@ while [ $iteration -lt $max_iterations ]; do
         If issues found: CODE_HAS_SLOP: [detailed list of specific problems to fix]
 
         Be a code quality snob - point out anything that would make another developer groan.
-        " 2>&1 | tee >(stream_log "CODE_SLOP"))
+        " 2>&1 | stream_log "CODE_SLOP")
+        cd ..
 
         log "AGENT_OUTPUT" "=== CODE SLOP AGENT RESPONSE ==="
         log "AGENT_OUTPUT" "$SLOP_RESULT"
@@ -269,10 +274,11 @@ while [ $iteration -lt $max_iterations ]; do
 
         # Use OpenCode agent for intelligent architecture analysis
         log "INFO" "Calling OpenCode Architecture Agent..."
+        cd workspace
         ARCH_RESULT=$(opencode run --model opencode/grok-code "
         You are the Architecture Agent - system design expert.
 
-        Evaluate the application architecture in 'workspace/' for scalability, maintainability, and proper design patterns.
+        Evaluate the application architecture for scalability, maintainability, and proper design patterns.
 
         Consider:
         - Separation of concerns (frontend/backend/data layers)
@@ -293,7 +299,8 @@ while [ $iteration -lt $max_iterations ]; do
         If issues found: ARCHITECTURE_NEEDS_WORK: [specific architectural improvements needed]
 
         Be an architecture snob - ensure this could become a serious production system.
-        " 2>&1 | tee >(stream_log "ARCHITECTURE"))
+        " 2>&1 | stream_log "ARCHITECTURE")
+        cd ..
 
         log "AGENT_OUTPUT" "=== ARCHITECTURE AGENT RESPONSE ==="
         log "AGENT_OUTPUT" "$ARCH_RESULT"
@@ -318,10 +325,11 @@ while [ $iteration -lt $max_iterations ]; do
 
         # Use OpenCode agent for intelligent UI/UX analysis
         log "INFO" "Calling OpenCode UI Design Snob Agent..."
+        cd workspace
         UI_RESULT=$(opencode run --model opencode/grok-code "
         You are the UI Design Snob Agent - pixel-perfect design critic.
 
-        Evaluate the user interface and user experience in 'workspace/client/' for professional quality and user satisfaction.
+        Evaluate the user interface and user experience for professional quality and user satisfaction.
 
         Examine:
         - Visual design consistency and aesthetics
@@ -343,7 +351,8 @@ while [ $iteration -lt $max_iterations ]; do
         If issues found: UI_NEEDS_WORK: [specific design and UX problems to fix]
 
         Be a design snob - if it's 'off by two pixels', demand it be fixed.
-        " 2>&1 | tee >(stream_log "UI_DESIGN"))
+        " 2>&1 | stream_log "UI_DESIGN")
+        cd ..
 
         log "AGENT_OUTPUT" "=== UI DESIGN SNOB AGENT RESPONSE ==="
         log "AGENT_OUTPUT" "$UI_RESULT"
