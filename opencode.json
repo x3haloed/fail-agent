@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "lmstudio": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LM Studio (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:1234/v1"
+      },
+      "models": {
+        "huihui-qwen3-vl-8b-instruct-abliterated-mlx": {
+          "name": "Huihui Qwen3 VL 8B (local)"
+        }
+      }
+    }
+  }
+}
