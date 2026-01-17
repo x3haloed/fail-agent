@@ -6,9 +6,26 @@
 
 set -e
 
-echo "🎯 Ralph Wiggum Trunk Agent Activated"
-echo "====================================="
-echo "The infinite loop that never exits until perfection..."
+# Setup logging
+LOG_DIR="$(dirname "$0")/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/ralph-wiggum-$(date +%Y%m%d-%H%M%S).log"
+
+# Logging function
+log() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
+}
+
+# Redirect all output to log file
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+log "INFO" "🎯 Ralph Wiggum Trunk Agent Activated"
+log "INFO" "====================================="
+log "INFO" "The infinite loop that never exits until perfection..."
+log "INFO" "Log file: $LOG_FILE"
 echo ""
 
 cd "$(dirname "$0")/.."
@@ -16,27 +33,26 @@ cd "$(dirname "$0")/.."
 # Read user intent
 if [ -f "wiggum/state/intent.json" ]; then
     INTENT=$(cat wiggum/state/intent.json | jq -r '.description')
-    echo "User Intent: $INTENT"
+    log "INFO" "User Intent: $INTENT"
 else
-    echo "❌ No user intent found. Run initialization first."
+    log "ERROR" "No user intent found. Run initialization first."
     exit 1
 fi
 
-echo ""
-echo "Starting Ralph Wiggum development loop..."
-echo "This loop will continue until the application is 100% perfect."
-echo ""
+log "INFO" "Starting Ralph Wiggum development loop..."
+log "INFO" "This loop will continue until the application is 100% perfect."
+log "INFO" "Monitoring available at: tail -f $LOG_FILE"
 
 iteration=0
 max_iterations=50  # Safety limit to prevent infinite loops
 
 while [ $iteration -lt $max_iterations ]; do
-    echo "🔄 Ralph Loop Iteration $iteration"
-    echo "=================================="
+    log "INFO" "🔄 Ralph Loop Iteration $iteration"
+    log "INFO" "=================================="
 
     # Phase 1: Trunk Agent - Plan and Create/Improve Application
-    echo "🎯 Phase 1: Trunk Agent - Development"
-    echo "Building the actual application that meets user requirements..."
+    log "INFO" "🎯 Phase 1: Trunk Agent - Development"
+    log "INFO" "Building the actual application that meets user requirements..."
 
     # Create workspace directory if it doesn't exist
     mkdir -p wiggum/workspace
@@ -96,15 +112,15 @@ while [ $iteration -lt $max_iterations ]; do
         "
 
         cd ..
-        echo "✅ Application generated successfully"
+        log "SUCCESS" "✅ Application generated successfully"
     else
-        echo "Application exists, analyzing for improvements..."
+        log "INFO" "Application exists, analyzing for improvements..."
         # TODO: Implement improvement logic for existing applications
     fi
 
     # Phase 2: Execution Verification Agent
-    echo "🔍 Phase 2: Execution Verification Agent"
-    echo "Using intelligent agent to verify the application works like a human would use it..."
+    log "INFO" "🔍 Phase 2: Execution Verification Agent"
+    log "INFO" "Using intelligent agent to verify the application works like a human would use it..."
 
     # Use OpenCode agent to actually verify the application
     VERIFICATION_RESULT=$(opencode run --model opencode/grok-code "
@@ -135,19 +151,21 @@ while [ $iteration -lt $max_iterations ]; do
     Be thorough - would a human user be satisfied with this application?
     " 2>/dev/null)
 
+    log "DEBUG" "Execution Agent Result: $VERIFICATION_RESULT"
+
     if echo "$VERIFICATION_RESULT" | grep -q "WORKS_PERFECTLY"; then
-        echo "✅ Execution verification passed - application works as intended!"
+        log "SUCCESS" "✅ Execution verification passed - application works as intended!"
         VERIFICATION_PASSED=true
     else
-        echo "❌ Execution verification failed"
-        echo "Issues found: $VERIFICATION_RESULT"
+        log "ERROR" "❌ Execution verification failed"
+        log "ERROR" "Issues found: $VERIFICATION_RESULT"
         VERIFICATION_PASSED=false
     fi
 
     # Phase 3: Code Slop Agent (if execution passed)
     if [ "$VERIFICATION_PASSED" = true ]; then
-        echo "🧹 Phase 3: Code Slop Agent"
-        echo "Intelligent code quality analysis for DRY violations, spaghetti code, and maintainability..."
+        log "INFO" "🧹 Phase 3: Code Slop Agent"
+        log "INFO" "Intelligent code quality analysis for DRY violations, spaghetti code, and maintainability..."
 
         # Use OpenCode agent for intelligent code quality analysis
         SLOP_RESULT=$(opencode run --model opencode/grok-code "
@@ -172,15 +190,17 @@ while [ $iteration -lt $max_iterations ]; do
         If code is clean and maintainable: CODE_IS_CLEAN
         If issues found: CODE_HAS_SLOP: [detailed list of specific problems to fix]
 
-        Be a code quality snob - point out anything that would make another developer groan.
-        " 2>/dev/null)
+    Be a code quality snob - point out anything that would make another developer groan.
+    " 2>/dev/null)
+
+        log "DEBUG" "Code Slop Agent Result: $SLOP_RESULT"
 
         if echo "$SLOP_RESULT" | grep -q "CODE_IS_CLEAN"; then
-            echo "✅ Code quality check passed - clean, maintainable code!"
+            log "SUCCESS" "✅ Code quality check passed - clean, maintainable code!"
             SLOP_CLEAN=true
         else
-            echo "❌ Code quality issues found"
-            echo "Details: $SLOP_RESULT"
+            log "ERROR" "❌ Code quality issues found"
+            log "ERROR" "Details: $SLOP_RESULT"
             SLOP_CLEAN=false
         fi
     else
@@ -189,8 +209,8 @@ while [ $iteration -lt $max_iterations ]; do
 
     # Phase 4: Architecture Agent (if code is clean)
     if [ "$SLOP_CLEAN" = true ]; then
-        echo "🏗️ Phase 4: Architecture Agent"
-        echo "Evaluating system design, scalability, and architectural elegance..."
+        log "INFO" "🏗️ Phase 4: Architecture Agent"
+        log "INFO" "Evaluating system design, scalability, and architectural elegance..."
 
         # Use OpenCode agent for intelligent architecture analysis
         ARCH_RESULT=$(opencode run --model opencode/grok-code "
@@ -219,12 +239,14 @@ while [ $iteration -lt $max_iterations ]; do
         Be an architecture snob - ensure this could become a serious production system.
         " 2>/dev/null)
 
+        log "DEBUG" "Architecture Agent Result: $ARCH_RESULT"
+
         if echo "$ARCH_RESULT" | grep -q "ARCHITECTURE_IS_SOLID"; then
-            echo "✅ Architecture check passed - solid, scalable, production-ready design!"
+            log "SUCCESS" "✅ Architecture check passed - solid, scalable, production-ready design!"
             ARCH_SOLID=true
         else
-            echo "❌ Architecture issues found"
-            echo "Details: $ARCH_RESULT"
+            log "ERROR" "❌ Architecture issues found"
+            log "ERROR" "Details: $ARCH_RESULT"
             ARCH_SOLID=false
         fi
     else
@@ -233,8 +255,8 @@ while [ $iteration -lt $max_iterations ]; do
 
     # Phase 5: UI Design Snob Agent (if architecture is solid)
     if [ "$ARCH_SOLID" = true ]; then
-        echo "🎨 Phase 5: UI Design Snob Agent"
-        echo "Evaluating pixel-perfect UI design, user experience, and visual polish..."
+        log "INFO" "🎨 Phase 5: UI Design Snob Agent"
+        log "INFO" "Evaluating pixel-perfect UI design, user experience, and visual polish..."
 
         # Use OpenCode agent for intelligent UI/UX analysis
         UI_RESULT=$(opencode run --model opencode/grok-code "
@@ -264,12 +286,14 @@ while [ $iteration -lt $max_iterations ]; do
         Be a design snob - if it's 'off by two pixels', demand it be fixed.
         " 2>/dev/null)
 
+        log "DEBUG" "UI Design Agent Result: $UI_RESULT"
+
         if echo "$UI_RESULT" | grep -q "UI_IS_PERFECT"; then
-            echo "✅ UI design check passed - pixel-perfect, professional, and delightful!"
+            log "SUCCESS" "✅ UI design check passed - pixel-perfect, professional, and delightful!"
             UI_PERFECT=true
         else
-            echo "❌ UI design issues found"
-            echo "Details: $UI_RESULT"
+            log "ERROR" "❌ UI design issues found"
+            log "ERROR" "Details: $UI_RESULT"
             UI_PERFECT=false
         fi
     else
@@ -277,39 +301,44 @@ while [ $iteration -lt $max_iterations ]; do
     fi
 
     # Ralph Wiggum Exit Condition Check
-    echo ""
-    echo "🎯 Ralph Wiggum Exit Check"
-    echo "=========================="
+    log "INFO" "🎯 Ralph Wiggum Exit Check"
+    log "INFO" "=========================="
+
+    log "INFO" "Verification Status:"
+    log "INFO" "  - Execution: $VERIFICATION_PASSED"
+    log "INFO" "  - Code Quality: $SLOP_CLEAN"
+    log "INFO" "  - Architecture: $ARCH_SOLID"
+    log "INFO" "  - UI Design: $UI_PERFECT"
 
     if [ "$VERIFICATION_PASSED" = true ] && [ "$SLOP_CLEAN" = true ] && [ "$ARCH_SOLID" = true ] && [ "$UI_PERFECT" = true ]; then
-        echo "🎉 ALL VERIFICATION GATES PASSED!"
-        echo "The application meets 100% of Ralph Wiggum standards."
-        echo ""
-        echo "✅ Execution: Works perfectly like a human would use it"
-        echo "✅ Code Quality: No slop, DRY, maintainable"
-        echo "✅ Architecture: Scalable, elegant design"
-        echo "✅ UI Design: Pixel-perfect, professional"
-        echo ""
-        echo "Ralph Wiggum loop complete. Application is perfect. ✨"
+        log "SUCCESS" "🎉 ALL VERIFICATION GATES PASSED!"
+        log "SUCCESS" "The application meets 100% of Ralph Wiggum standards."
+        log "SUCCESS" "✅ Execution: Works perfectly like a human would use it"
+        log "SUCCESS" "✅ Code Quality: No slop, DRY, maintainable"
+        log "SUCCESS" "✅ Architecture: Scalable, elegant design"
+        log "SUCCESS" "✅ UI Design: Pixel-perfect, professional"
+        log "SUCCESS" "Ralph Wiggum loop complete. Application is perfect. ✨"
+        echo "🎉 SUCCESS: Ralph Wiggum loop completed! Check $LOG_FILE for full details."
         exit 0
     else
-        echo "❌ Verification gates failed. Continuing Ralph loop..."
-        echo ""
-        echo "Failed gates:"
-        [ "$VERIFICATION_PASSED" = false ] && echo "  - Execution verification"
-        [ "$SLOP_CLEAN" = false ] && echo "  - Code quality"
-        [ "$ARCH_SOLID" = false ] && echo "  - Architecture"
-        [ "$UI_PERFECT" = false ] && echo "  - UI design"
-        echo ""
-        echo "Trunk agent will address these issues in the next iteration."
+        log "WARNING" "❌ Verification gates failed. Continuing Ralph loop..."
+        log "WARNING" "Failed gates:"
+        [ "$VERIFICATION_PASSED" = false ] && log "WARNING" "  - Execution verification"
+        [ "$SLOP_CLEAN" = false ] && log "WARNING" "  - Code quality"
+        [ "$ARCH_SOLID" = false ] && log "WARNING" "  - Architecture"
+        [ "$UI_PERFECT" = false ] && log "WARNING" "  - UI design"
+
+        log "INFO" "Trunk agent will address these issues in the next iteration."
+        echo "🔄 Continuing loop... Monitor progress: tail -f $LOG_FILE"
     fi
 
     iteration=$((iteration + 1))
-    echo "Sleeping 3 seconds before next iteration..."
+    log "INFO" "Iteration $iteration completed. Sleeping 3 seconds before next iteration..."
     sleep 3
 done
 
-echo "⚠️  Reached maximum iterations ($max_iterations)"
-echo "The Ralph Wiggum loop could not achieve perfection."
-echo "Manual intervention may be required."
+log "ERROR" "⚠️  Reached maximum iterations ($max_iterations)"
+log "ERROR" "The Ralph Wiggum loop could not achieve perfection."
+log "ERROR" "Manual intervention may be required."
+echo "❌ FAILURE: Ralph Wiggum loop failed after $max_iterations iterations. Check $LOG_FILE for details."
 exit 1
