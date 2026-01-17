@@ -45,30 +45,58 @@ while [ $iteration -lt $max_iterations ]; do
     if [ ! -d "workspace/client" ] || [ ! -d "workspace/server" ]; then
         echo "Generating application based on user intent: $INTENT"
 
-        # Generate the full-stack application using OpenCode
+        # Create workspace subdirectories
+        mkdir -p workspace/server workspace/client/src/components workspace/client/src/assets workspace/client/public
+
+        # Generate the full-stack application using OpenCode in the workspace
+        cd workspace
+
+        # Generate server files
         opencode run --model opencode/grok-code "
         You are a senior full-stack developer. The user wants: '$INTENT'
 
-        Create a complete, production-ready full-stack web application that perfectly satisfies this requirement.
+        Create a Node.js/Express backend server that perfectly satisfies this requirement.
 
         Requirements:
-        - Full-stack: Backend API + Frontend UI
-        - Modern tech: Node.js/Express backend, Vue 3 frontend
-        - Database: SQLite for simplicity
-        - Responsive design
-        - Error handling
+        - Express.js server with REST API
+        - SQLite database for data persistence
+        - Proper error handling and middleware
         - Clean, maintainable code
 
-        Generate the complete application structure with all necessary files:
-        - server/package.json, server/index.js
-        - client/package.json, client/vite.config.js, client/index.html
-        - client/src/main.js, client/src/App.vue, client/src/assets/main.css
-        - Any additional components needed
+        Generate these server files:
+        - package.json with all necessary dependencies
+        - index.js with the complete server implementation
 
-        The application should work immediately when 'npm install && npm start' is run in both directories.
-
-        Focus on creating exactly what the user requested - nothing more, nothing less.
+        The server should work immediately when 'npm install && npm start' is run.
+        Focus on creating exactly what the user requested for the backend.
         "
+
+        # Generate client files
+        opencode run --model opencode/grok-code "
+        You are a senior frontend developer. The user wants: '$INTENT'
+
+        Create a Vue 3 frontend application that perfectly satisfies this requirement.
+
+        Requirements:
+        - Vue 3 with Composition API
+        - Modern responsive design
+        - Clean, maintainable code
+        - Professional UI/UX
+
+        Generate these client files:
+        - package.json with all necessary dependencies
+        - vite.config.js for development
+        - index.html as entry point
+        - src/main.js for Vue app initialization
+        - src/App.vue as the main component
+        - src/assets/main.css for styling
+
+        The client should work immediately when 'npm install && npm run dev' is run.
+        Focus on creating exactly what the user requested for the frontend.
+        "
+
+        cd ..
+        echo "✅ Application generated successfully"
     else
         echo "Application exists, analyzing for improvements..."
         # TODO: Implement improvement logic for existing applications
