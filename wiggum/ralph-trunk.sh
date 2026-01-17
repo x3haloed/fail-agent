@@ -19,6 +19,14 @@ log() {
     echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
 }
 
+# Stream logging function for capturing OpenCode output in real-time
+stream_log() {
+    local prefix="$1"
+    while IFS= read -r line; do
+        log "STREAM" "[$prefix] $line"
+    done
+}
+
 # Redirect all output to log file
 exec > >(tee -a "$LOG_FILE") 2>&1
 
@@ -65,9 +73,11 @@ while [ $iteration -lt $max_iterations ]; do
         mkdir -p workspace/server workspace/client/src/components workspace/client/src/assets workspace/client/public
 
         # Generate the full-stack application using OpenCode in the workspace
+        log "INFO" "Generating backend server with OpenCode..."
         cd workspace
 
         # Generate server files
+        log "INFO" "Starting server generation with OpenCode..."
         opencode run --model opencode/grok-code "
         You are a senior full-stack developer. The user wants: '$INTENT'
 
@@ -85,8 +95,9 @@ while [ $iteration -lt $max_iterations ]; do
 
         The server should work immediately when 'npm install && npm start' is run.
         Focus on creating exactly what the user requested for the backend.
-        "
+        " 2>&1 | stream_log "SERVER_GEN"
 
+        log "INFO" "Generating frontend client with OpenCode..."
         # Generate client files
         opencode run --model opencode/grok-code "
         You are a senior frontend developer. The user wants: '$INTENT'
@@ -109,7 +120,7 @@ while [ $iteration -lt $max_iterations ]; do
 
         The client should work immediately when 'npm install && npm run dev' is run.
         Focus on creating exactly what the user requested for the frontend.
-        "
+        " 2>&1 | stream_log "CLIENT_GEN"
 
         cd ..
         log "SUCCESS" "✅ Application generated successfully"
@@ -123,6 +134,7 @@ while [ $iteration -lt $max_iterations ]; do
     log "INFO" "Using intelligent agent to verify the application works like a human would use it..."
 
     # Use OpenCode agent to actually verify the application
+    log "INFO" "Calling OpenCode Execution Verification Agent..."
     VERIFICATION_RESULT=$(opencode run --model opencode/grok-code "
     You are the Execution Verification Agent - you must verify that the application actually works as intended by a human user.
 
@@ -149,9 +161,11 @@ while [ $iteration -lt $max_iterations ]; do
     If there are issues: NEEDS_FIXES: [detailed description of problems]
 
     Be thorough - would a human user be satisfied with this application?
-    " 2>/dev/null)
+    " 2>&1 | tee >(stream_log "EXEC_VERIFY"))
 
-    log "DEBUG" "Execution Agent Result: $VERIFICATION_RESULT"
+    log "AGENT_OUTPUT" "=== EXECUTION VERIFICATION AGENT RESPONSE ==="
+    log "AGENT_OUTPUT" "$VERIFICATION_RESULT"
+    log "AGENT_OUTPUT" "=== END EXECUTION VERIFICATION ==="
 
     if echo "$VERIFICATION_RESULT" | grep -q "WORKS_PERFECTLY"; then
         log "SUCCESS" "✅ Execution verification passed - application works as intended!"
@@ -168,6 +182,7 @@ while [ $iteration -lt $max_iterations ]; do
         log "INFO" "Intelligent code quality analysis for DRY violations, spaghetti code, and maintainability..."
 
         # Use OpenCode agent for intelligent code quality analysis
+        log "INFO" "Calling OpenCode Code Slop Agent..."
         SLOP_RESULT=$(opencode run --model opencode/grok-code "
         You are the Code Slop Agent - expert code quality analyzer.
 
@@ -190,10 +205,12 @@ while [ $iteration -lt $max_iterations ]; do
         If code is clean and maintainable: CODE_IS_CLEAN
         If issues found: CODE_HAS_SLOP: [detailed list of specific problems to fix]
 
-    Be a code quality snob - point out anything that would make another developer groan.
-    " 2>/dev/null)
+        Be a code quality snob - point out anything that would make another developer groan.
+        " 2>&1 | tee >(stream_log "CODE_SLOP"))
 
-        log "DEBUG" "Code Slop Agent Result: $SLOP_RESULT"
+        log "AGENT_OUTPUT" "=== CODE SLOP AGENT RESPONSE ==="
+        log "AGENT_OUTPUT" "$SLOP_RESULT"
+        log "AGENT_OUTPUT" "=== END CODE SLOP ==="
 
         if echo "$SLOP_RESULT" | grep -q "CODE_IS_CLEAN"; then
             log "SUCCESS" "✅ Code quality check passed - clean, maintainable code!"
@@ -213,6 +230,7 @@ while [ $iteration -lt $max_iterations ]; do
         log "INFO" "Evaluating system design, scalability, and architectural elegance..."
 
         # Use OpenCode agent for intelligent architecture analysis
+        log "INFO" "Calling OpenCode Architecture Agent..."
         ARCH_RESULT=$(opencode run --model opencode/grok-code "
         You are the Architecture Agent - system design expert.
 
@@ -237,9 +255,11 @@ while [ $iteration -lt $max_iterations ]; do
         If issues found: ARCHITECTURE_NEEDS_WORK: [specific architectural improvements needed]
 
         Be an architecture snob - ensure this could become a serious production system.
-        " 2>/dev/null)
+        " 2>&1 | tee >(stream_log "ARCHITECTURE"))
 
-        log "DEBUG" "Architecture Agent Result: $ARCH_RESULT"
+        log "AGENT_OUTPUT" "=== ARCHITECTURE AGENT RESPONSE ==="
+        log "AGENT_OUTPUT" "$ARCH_RESULT"
+        log "AGENT_OUTPUT" "=== END ARCHITECTURE ==="
 
         if echo "$ARCH_RESULT" | grep -q "ARCHITECTURE_IS_SOLID"; then
             log "SUCCESS" "✅ Architecture check passed - solid, scalable, production-ready design!"
@@ -259,6 +279,7 @@ while [ $iteration -lt $max_iterations ]; do
         log "INFO" "Evaluating pixel-perfect UI design, user experience, and visual polish..."
 
         # Use OpenCode agent for intelligent UI/UX analysis
+        log "INFO" "Calling OpenCode UI Design Snob Agent..."
         UI_RESULT=$(opencode run --model opencode/grok-code "
         You are the UI Design Snob Agent - pixel-perfect design critic.
 
@@ -284,9 +305,11 @@ while [ $iteration -lt $max_iterations ]; do
         If issues found: UI_NEEDS_WORK: [specific design and UX problems to fix]
 
         Be a design snob - if it's 'off by two pixels', demand it be fixed.
-        " 2>/dev/null)
+        " 2>&1 | tee >(stream_log "UI_DESIGN"))
 
-        log "DEBUG" "UI Design Agent Result: $UI_RESULT"
+        log "AGENT_OUTPUT" "=== UI DESIGN SNOB AGENT RESPONSE ==="
+        log "AGENT_OUTPUT" "$UI_RESULT"
+        log "AGENT_OUTPUT" "=== END UI DESIGN ==="
 
         if echo "$UI_RESULT" | grep -q "UI_IS_PERFECT"; then
             log "SUCCESS" "✅ UI design check passed - pixel-perfect, professional, and delightful!"
